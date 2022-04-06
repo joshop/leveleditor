@@ -156,6 +156,7 @@ SDL_Texture *datablockIcon;
 SDL_Texture *referenceIcon;
 SDL_Texture *movementIcon;
 int clipNewer = 0;
+int can_save = 0;
 void draw_text(int x, int y, char* string) {
     SDL_Surface *text = TTF_RenderText_Shaded(font, string, black, white);
     SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, text);
@@ -196,6 +197,7 @@ void onclick_curtile(int index) {
         tiles[cur_tile].colors[index] = selectedColor;
         tiles[cur_tile].lastPalette = selectedPalette;
         update_tile_texture(&tiles[cur_tile]);
+        can_save = 1;
     } else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_MIDDLE) {
         char fillfrom = tiles[cur_tile].colors[index];
         char dofill[64];
@@ -231,6 +233,7 @@ void onclick_curtile(int index) {
         }
         tiles[cur_tile].lastPalette = selectedPalette;
         update_tile_texture(&tiles[cur_tile]);
+        can_save = 1;
     }
 }
 void onclick_palette(int index) {
@@ -259,17 +262,20 @@ void onclick_pattern(int index) {
         tiles[index].lastPalette = tiles[cur_tile].lastPalette;
         tiles[index].texture = NULL;
         update_tile_texture(&tiles[index]);
+        can_save = 1;
     }
 }
 void onclick_metatile(int index) {
     if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) {
         metatiles[cur_metatile].subtiles[index] = cur_tile;
         update_metatile_texture(&metatiles[cur_metatile]);
+        can_save = 1;
     }
 }
 void onclick_metagrid(int index) {
     if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_RIGHT) {
         cur_metatile = index;
+        can_save = 1;
     }
 }
 int num_added;
@@ -996,7 +1002,7 @@ int main() {
                                 }
                             }
                         case SDLK_c:
-                            if (kstate[SDL_SCANCODE_LALT]) {
+                            if (kstate[SDL_SCANCODE_LALT] && can_save) {
                                 export_files();
                             }
                             break;
@@ -1213,7 +1219,7 @@ int main() {
                     mouserect.h = CUR_TILE_PSIZE;
                     for (int i = 0; i < 8; i++) {
                         for (int j = 0; j < 8; j++) {
-                            if (SDL_PointInRect(&mousepoint, &mouserect)) {
+                            if (SDL_PointInRect(&mousepoint, &mouserect) && upperMode == 0) {
                                 onclick_curtile((i << 3) + j);
                             }
                             mouserect.x += mouserect.w;
@@ -1241,7 +1247,7 @@ int main() {
                     mouserect.h = PATTERNS_PSIZE;
                     for (int i = 0; i < 16; i++) {
                         for (int j = 0; j < 32; j++) {
-                            if (SDL_PointInRect(&mousepoint, &mouserect)) {
+                            if (SDL_PointInRect(&mousepoint, &mouserect) && upperMode == 0) {
                                 onclick_pattern((i << 5) + j);
                             }
                             mouserect.x += mouserect.w;
@@ -1384,13 +1390,15 @@ int main() {
                             mouserect.y = 10+16*i;
                             if (SDL_PointInRect(&mousepoint, &mouserect)) {
                                 for (int k = 0; k < num_added; k++) {
-                                    if (last_pattern_added[k] == (i*selectedPattern->sizeX+j)) {
+                                    if (last_pattern_added[k] == (i*selectedPattern->sizeX+j)) {   
+                                        printf("patternclick1\n");
                                         if (selectedPattern->commands[command_index].type == RECTANGLE && event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) {
                                             selectedPattern->commands[command_index].argument = cur_metatile;
                                         } else if (selectedPattern->commands[command_index].type == DATABLOCK && event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) {
+                                            printf("patternclick\n");
                                             int hx = pos_history % selectedPattern->sizeX + selectedPattern->commands[command_index].offX;
                                             int hy = pos_history / selectedPattern->sizeX + selectedPattern->commands[command_index].offY;
-                                            selectedPattern->commands[command_index].datablock[(i-hx)*selectedPattern->commands[command_index].sizeX+(j-hy)] = cur_metatile;
+                                            selectedPattern->commands[command_index].datablock[(i-hy)*selectedPattern->commands[command_index].sizeX+(j-hx)] = cur_metatile;
                                         } else if (selectedPattern->commands[command_index].type == REFERENCE && event.type == SDL_MOUSEWHEEL) {
                                             if ((event.wheel.y > 0) != (event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED)) {
                                                 if (selectedPattern->commands[command_index].argument > 0) {

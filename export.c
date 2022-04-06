@@ -3,8 +3,8 @@
 
 int serializePattern(FILE *pattern, char *buffer, int includeHeader) {
     int numcommands = fgetc(pattern);
-    int psizeX = fgetc(pattern);
-    int psizeY = fgetc(pattern);
+    int psizeX = fgetc(pattern)-1;
+    int psizeY = fgetc(pattern)-1;
     char *orig = buffer;
     if (includeHeader) {
         *(buffer++) = (psizeX << 4) | psizeY;
@@ -39,7 +39,7 @@ int serializePattern(FILE *pattern, char *buffer, int includeHeader) {
                 *(buffer++) = 0b01000000;
                 *(buffer++) = (offX << 4) | offY;
                 *(buffer++) = ((sizeX-1) << 4) | (sizeY-1);
-                for (int i = 0; i < sizeX*sizeY; i++) {
+                for (int j = 0; j < sizeX*sizeY; j++) {
                     *(buffer++) = fgetc(pattern);
                 }
                 break;
@@ -54,8 +54,8 @@ int serializePattern(FILE *pattern, char *buffer, int includeHeader) {
                 *(buffer++) = argument;
                 break;
             case 4: // MOVEMENT
-                offX = ((signed char)fgetc(pattern)/8) & 7;
-                offY = ((signed char)fgetc(pattern)/8) & 7;
+                offX = ((signed char)fgetc(pattern)) & 7;
+                offY = ((signed char)fgetc(pattern)) & 7;
                 *(buffer++) = (offX << 3) | (offY) | 0b01000000;
                 break;
         }
@@ -111,13 +111,13 @@ int main() {
         sprintf(fname, "level/patterns/pattern%d", i);
         temp = fopen(fname, "r");
         int patSize = serializePattern(temp, buffer, 1);
-        fseek(binary, 12 + (i << 1), SEEK_SET);
+        fseek(binary, 14 + (i << 1), SEEK_SET);
         fputc(runningOffset & 0xff, binary);
-        fputc(0xe0 | (runningOffset >> 1), binary);
+        fputc(0xe0 | (runningOffset >> 8), binary);
         fseek(binary, 0, SEEK_END);
         runningOffset += patSize;
         for (int j = 0; j < patSize; j++) {
-            fputc(buffer[i], binary);
+            fputc(buffer[j], binary);
         }
     }
     char buffer1[64];
