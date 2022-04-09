@@ -653,6 +653,7 @@ void import_pattern(FILE *file, Pattern *pattern) {
 
 }
 void import_files() {
+    can_save = 1;
     FILE *file = fopen("level/palette", "r");
     for (int i = 0; i < 16; i++) {
         palettes[i / 4][i % 4] = fgetc(file);
