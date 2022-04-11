@@ -116,6 +116,7 @@ int main() {
         fputc(0xe0 | (runningOffset >> 8), binary);
         fseek(binary, 0, SEEK_END);
         runningOffset += patSize;
+        printf("pattern number %d is the %d byte\n", i, patSize);
         for (int j = 0; j < patSize; j++) {
             fputc(buffer[j], binary);
         }

@@ -257,8 +257,7 @@ void onclick_palette(int index) {
 void onclick_pattern(int index) {
     if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) {
         cur_tile = index;
-    } else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_RIGHT) {
-        memcpy(tiles[index].colors, tiles[cur_tile].colors, 64);
+    } else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_MIDDLE) {
         tiles[index].lastPalette = tiles[cur_tile].lastPalette;
         tiles[index].texture = NULL;
         update_tile_texture(&tiles[index]);
@@ -340,6 +339,7 @@ void update_pattern_cache(Pattern *pattern, int commandmax) {
             y += command.offY;
             int sx = x;
             int sy = y;
+            if (pattern == &patterns[command.argument]) continue;
             update_pattern_cache(&patterns[command.argument], -1);
             for (int yl = 0; yl < command.sizeY; yl++) {
                 for (int xl = 0; xl < command.sizeX; xl++) {
@@ -373,7 +373,7 @@ int scroll2 = 0;
 void draw_pattern(Pattern *pattern) {
     for (int i = 0; i < pattern->sizeY; i++) {
         for (int j = 0; j < pattern->sizeX; j++) {
-            draw_metatile(&metatiles[pattern->cache[i*pattern->sizeX+j]], scroll+10+16*j, 10+16*i, 16, 16);
+            draw_metatile(&metatiles[pattern->cache[i*pattern->sizeX+j]], (selectedPattern->sizeX > 16 ? scroll : 0)+10+16*j, 10+16*i, 16, 16);
         }
     }
 }
@@ -1520,7 +1520,7 @@ int main() {
                 rect.w = 16*16;
                 rect.h = 16*16;
                 SDL_RenderSetClipRect(renderer, &rect);
-                rect.x = 16*(upcoming_pos % selectedPattern->sizeX)+10+scroll;
+                rect.x = 16*(upcoming_pos % selectedPattern->sizeX)+10+(selectedPattern == &mainLevel[yscroll] ? scroll : 0);
                 rect.y = 16*(upcoming_pos / selectedPattern->sizeX)+10;
                 rect.w = 16;
                 rect.h = 16;
@@ -1530,7 +1530,7 @@ int main() {
                 SDL_RenderFillRect(renderer, &rect);
                 int oldx = rect.x;
                 int oldy = rect.y;
-                rect.x = 16*(pos_history % selectedPattern->sizeX)+10+scroll;
+                rect.x = 16*(pos_history % selectedPattern->sizeX)+10+(selectedPattern == &mainLevel[yscroll] ? scroll : 0);
                 rect.y = 16*(pos_history / selectedPattern->sizeX)+10;
                 rect.w = 16;
                 rect.h = 16;
