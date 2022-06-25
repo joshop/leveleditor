@@ -94,7 +94,7 @@ int main() {
     fputc(0xe0, binary);
     fputc(0xe0, binary);
     fputc(0xe0, binary);
-    fputc(0xe0, binary);
+    fputc(0xe0, binary); // METASPRITE POINTER
     fputc(0xe0, binary);
     for (int i = 0; i < num_good_patterns; i++) {
         fputc(0x00, binary); // to be sought later
@@ -116,7 +116,7 @@ int main() {
         fputc(0xe0 | (runningOffset >> 8), binary);
         fseek(binary, 0, SEEK_END);
         runningOffset += patSize;
-        printf("pattern number %d is the %d byte\n", i, patSize);
+        //printf("pattern number %d is the %d byte\n", i, patSize);
         for (int j = 0; j < patSize; j++) {
             fputc(buffer[j], binary);
         }
@@ -186,7 +186,49 @@ int main() {
     fputc((off4 >> 8) | 0xe0, binary);
     fputc(off5 & 0xff, binary);
     fputc((off5 >> 8) | 0xe0, binary);
+    fputc(runningOffset & 0xff, binary);
+    fputc((runningOffset >> 8) | 0xe0, binary);
     fseek(binary, 0, SEEK_END);
+    int mes_offsets[128];
+    int mes_size = 0;
+    int rbad = 0;
+    for (int i = 0; i < 128; i++) {
+        sprintf(fname, "level/sprites/sprite%d", i);
+        temp = fopen(fname, "r");
+        int count = fgetc(temp);
+        mes_offsets[i] = mes_size;
+        int bad = 0;
+        buffer[mes_size+1] = count;
+        for (int j = 0; j < count; j++) {
+            char mirrorx = fgetc(temp); 
+            char mirrory = fgetc(temp); 
+            char relx = fgetc(temp); 
+            char rely = fgetc(temp); 
+            char palette = fgetc(temp); 
+            char tile = fgetc(temp);
+            buffer[mes_size+1] = relx;
+            buffer[mes_size+2] = rely;
+            buffer[mes_size+3] = tile;
+            buffer[mes_size+4] = (mirrorx << 7) | (mirrory << 6) | palette;
+            if (count == 1 && tile == 0 && rbad) {
+                bad = 1;
+                mes_offsets[i] = -1;
+                continue;
+            } else if (count == 1 && tile == 0) {
+                rbad = 1;
+            }
+            mes_size += 4;
+        }
+        if (!bad) mes_size++;
+    }
+    for (int i = 0; i < 128; i++) {
+        if (mes_offsets[i] == -1) continue;
+        fputc(mes_offsets[i] & 0xff, binary);
+        fputc((mes_offsets[i] >> 8) | 0xe0, binary);
+    }
+    for (int i = 0; i < mes_size; i++) {
+        fputc(buffer[i], binary);
+    }
     fclose(binary);
     binary = fopen("output.chr", "w");
     for (int i = 0; i < 512; i++) {

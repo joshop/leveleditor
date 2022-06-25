@@ -424,12 +424,18 @@ int num_file_bytes() {
     // 3 bytes per metasprite
     // 4 bytes per subsprite
     int bytes = 15;
+    printf("14 bytes for pointer listing\n");
     int numpatterns = 0;
+    int referenced[256];
+    for (int i = 0; i < 256; i++) {
+        referenced[i] = 0;
+    }
     int cost = 0;
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 1; i++) { // TODO THAT
+        cost = 1;
         for (int j = 0; j < mainLevel[i].numcommands; j++) {
-            if (mainLevel[i].commands[j].type == REFERENCE && mainLevel[i].commands[j].argument > numpatterns) {
-                numpatterns = mainLevel[i].commands[j].argument;
+            if (mainLevel[i].commands[j].type == REFERENCE) {
+                referenced[mainLevel[i].commands[j].argument] = 1;
             }
             switch (mainLevel[i].commands[j].type) {
                 case POINT:
@@ -454,9 +460,47 @@ int num_file_bytes() {
                     break;
             }
         }
+        printf("%d bytes for main level slice %d\n", cost, i);
+    }
+    int allzeros = 0;
+    for (int i = 0; i < 256; i++) {
+        for (int j = 0; j < patterns[i].numcommands; j++) {
+            if (patterns[i].commands[j].type == REFERENCE) {
+                referenced[patterns[i].commands[j].argument] = 1;
+            }
+        }
+    }
+    for (int i = 0; i < 256; i++) {
+        if (!referenced[i]) continue;
+        numpatterns++;
+        for (int j = 0; j < patterns[i].numcommands; j++) {
+            switch (patterns[i].commands[j].type) {
+                case POINT:
+                    bytes += 2;
+                    cost += 2;
+                    break;
+                case RECTANGLE:
+                    bytes += 3;
+                    cost += 3;
+                    break;
+                case DATABLOCK:
+                    bytes += 3 + mainLevel[i].commands[j].sizeX * mainLevel[i].commands[j].sizeY;
+                    cost += 3 + mainLevel[i].commands[j].sizeX * mainLevel[i].commands[j].sizeY;
+                    break;
+                case REFERENCE:
+                    bytes += 3;
+                    cost += 3;
+                    break;
+                case MOVEMENT:
+                    bytes++;
+                    cost++;
+                    break;
+            }
+        }
     }
     bytes += 4 * numpatterns;
-    int allzeros = 0;
+    printf("%d bytes for pattern pointers and headers\n", 4 * numpatterns);
+    allzeros = 0;
     cost = 0;
     for (int i = 0; i < 64; i++) {
         if (metatiles[i].subtiles[0] == 0 && metatiles[i].subtiles[1] == 0 && metatiles[i].subtiles[2] == 0 && metatiles[i].subtiles[3] == 0) {
@@ -469,6 +513,7 @@ int num_file_bytes() {
         bytes += 5;
         cost += 5;
     }
+    printf("%d bytes for metatiles\n", cost);
     cost = 0;
     allzeros = 0;
     for (int i = 0; i < 128; i++) {
@@ -482,6 +527,7 @@ int num_file_bytes() {
         bytes += 3 + 4*metasprites[i].numsprites;
         cost += 3 + 4*metasprites[i].numsprites;
     }
+    printf("%d bytes for metasprites\n", cost);
     return bytes;
 }
 void export_pattern(Pattern pattern, FILE *file) {
@@ -1290,12 +1336,12 @@ int main() {
                     mouserect.h = 256;
                     if (SDL_PointInRect(&mousepoint, &mouserect)) {
                         if (event.type == SDL_MOUSEWHEEL) {
-                            if ((event.wheel.y > 0) != (event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED)) {
+                            if ((event.wheel.y > 0) != (event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) && upperMode == 1) {
                                 scroll2-=4;
                             } else {
                                 scroll2+=4;
                             }
-                        } else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) {
+                        } else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT && upperMode == 1) {
                             int realpos = event.button.y-10 - scroll2;
                             if (realpos/40 < selectedPattern->numcommands) {
                                 command_index = realpos / 40;
@@ -1306,7 +1352,7 @@ int main() {
                                     scroll2 = 256-40*(command_index+1);
                                 }
                             }
-                        } else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_RIGHT) {
+                        } else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_RIGHT && upperMode == 1) {
                             int realpos = event.button.y-10 - scroll2;
                             if (realpos/40 < selectedPattern->numcommands) {
                                 Command thecmd = selectedPattern->commands[command_index];
@@ -1391,12 +1437,10 @@ int main() {
                             mouserect.y = 10+16*i;
                             if (SDL_PointInRect(&mousepoint, &mouserect)) {
                                 for (int k = 0; k < num_added; k++) {
-                                    if (last_pattern_added[k] == (i*selectedPattern->sizeX+j)) {   
-                                        printf("patternclick1\n");
+                                    if (last_pattern_added[k] == (i*selectedPattern->sizeX+j)) { 
                                         if (selectedPattern->commands[command_index].type == RECTANGLE && event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) {
                                             selectedPattern->commands[command_index].argument = cur_metatile;
                                         } else if (selectedPattern->commands[command_index].type == DATABLOCK && event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) {
-                                            printf("patternclick\n");
                                             int hx = pos_history % selectedPattern->sizeX + selectedPattern->commands[command_index].offX;
                                             int hy = pos_history / selectedPattern->sizeX + selectedPattern->commands[command_index].offY;
                                             selectedPattern->commands[command_index].datablock[(i-hy)*selectedPattern->commands[command_index].sizeX+(j-hx)] = cur_metatile;
