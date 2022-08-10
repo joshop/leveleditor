@@ -192,13 +192,14 @@ int main() {
     int mes_offsets[128];
     int mes_size = 0;
     int rbad = 0;
+    int msct = 0;
     for (int i = 0; i < 128; i++) {
         sprintf(fname, "level/sprites/sprite%d", i);
         temp = fopen(fname, "r");
         int count = fgetc(temp);
         mes_offsets[i] = mes_size;
         int bad = 0;
-        buffer[mes_size+1] = count;
+        buffer[mes_size] = count;
         for (int j = 0; j < count; j++) {
             char mirrorx = fgetc(temp); 
             char mirrory = fgetc(temp); 
@@ -209,7 +210,7 @@ int main() {
             buffer[mes_size+1] = relx;
             buffer[mes_size+2] = rely;
             buffer[mes_size+3] = tile;
-            buffer[mes_size+4] = (mirrorx << 7) | (mirrory << 6) | palette;
+            buffer[mes_size+4] = (mirrory << 7) | (mirrorx << 6) | palette;
             if (count == 1 && tile == 0 && rbad) {
                 bad = 1;
                 mes_offsets[i] = -1;
@@ -219,10 +220,15 @@ int main() {
             }
             mes_size += 4;
         }
-        if (!bad) mes_size++;
+        if (!bad) {
+            mes_size++;
+            msct++;
+        }
     }
+    runningOffset += msct*2;
     for (int i = 0; i < 128; i++) {
         if (mes_offsets[i] == -1) continue;
+        mes_offsets[i] += runningOffset;
         fputc(mes_offsets[i] & 0xff, binary);
         fputc((mes_offsets[i] >> 8) | 0xe0, binary);
     }

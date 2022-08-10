@@ -81,9 +81,15 @@ void draw_special_tile(Tile *tile, int x, int y, int w, int h, int palette, int 
     int pixels[64];
     SDL_Color color;
     for (int i = 0; i < 64; i++) {
-        color = nes_palette[palettes[palette][tile->colors[i]]];
+        if (tile->colors[i]) {
+            color = nes_palette[palettes[palette][tile->colors[i]]];
+        } else {
+            printf("transparent\n");
+            color.a = SDL_ALPHA_TRANSPARENT;
+        }
         pixels[i] = *(int*)&color;
     }
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
     SDL_UpdateTexture(texture, NULL, &pixels, 32);
     SDL_Rect rect = {x, y, w, h};
     SDL_RenderCopyEx(renderer, texture, NULL, &rect, 0, NULL, mirrory*SDL_FLIP_VERTICAL | mirrorx*SDL_FLIP_HORIZONTAL);
@@ -301,7 +307,11 @@ void update_pattern_cache(Pattern *pattern, int commandmax) {
         }
         command = pattern->commands[i];
         if (command.type == POINT) {
-            // tbd
+            x += command.offX;
+            y += command.offY;
+            last_pattern_added[num_added++] = y*pattern->sizeX+x;
+            x++;
+            y++;
         } else if (command.type == RECTANGLE) {
             x += command.offX;
             y += command.offY;
@@ -388,7 +398,7 @@ void draw_command(Command command, int index) {
     sprintf(buffer, "%d: ", index);
     draw_text2(300, 10+40*index+scroll2, buffer);
     if (command.type == POINT) {
-        sprintf(buffer, "(%+d,%+d)", command.offX, command.offY);
+        sprintf(buffer, "(%+d,%+d) Action %d", command.offX, command.offY, command.argument);
         SDL_RenderCopy(renderer, pointIcon, NULL, &rect);
         tx += 40;
     } else if (command.type == RECTANGLE) {
@@ -424,7 +434,7 @@ int num_file_bytes() {
     // 3 bytes per metasprite
     // 4 bytes per subsprite
     int bytes = 15;
-    printf("14 bytes for pointer listing\n");
+    //printf("14 bytes for pointer listing\n");
     int numpatterns = 0;
     int referenced[256];
     for (int i = 0; i < 256; i++) {
@@ -460,7 +470,7 @@ int num_file_bytes() {
                     break;
             }
         }
-        printf("%d bytes for main level slice %d\n", cost, i);
+        //printf("%d bytes for main level slice %d\n", cost, i);
     }
     int allzeros = 0;
     for (int i = 0; i < 256; i++) {
@@ -499,7 +509,7 @@ int num_file_bytes() {
         }
     }
     bytes += 4 * numpatterns;
-    printf("%d bytes for pattern pointers and headers\n", 4 * numpatterns);
+    //printf("%d bytes for pattern pointers and headers\n", 4 * numpatterns);
     allzeros = 0;
     cost = 0;
     for (int i = 0; i < 64; i++) {
@@ -513,11 +523,11 @@ int num_file_bytes() {
         bytes += 5;
         cost += 5;
     }
-    printf("%d bytes for metatiles\n", cost);
+    //printf("%d bytes for metatiles\n", cost);
     cost = 0;
     allzeros = 0;
     for (int i = 0; i < 128; i++) {
-        if (metasprites[i].numsprites == 1 && metasprites[i].subsprites[0].tile == 0) {
+        if (metasprites[i].numsprites == 1 && (metasprites[i].subsprites[0].tile & 0xff) == 0) {
             if (allzeros) {
                 continue;
             } else {
@@ -527,7 +537,7 @@ int num_file_bytes() {
         bytes += 3 + 4*metasprites[i].numsprites;
         cost += 3 + 4*metasprites[i].numsprites;
     }
-    printf("%d bytes for metasprites\n", cost);
+    //printf("%d bytes for metasprites\n", cost);
     return bytes;
 }
 void export_pattern(Pattern pattern, FILE *file) {
@@ -732,12 +742,12 @@ void import_files() {
         metasprites[i].numsprites = fgetc(file);
         metasprites[i].subsprites = calloc(metasprites[i].numsprites, sizeof(Sprite));
         for (int j = 0; j < metasprites[i].numsprites; j++) {
-            metasprites[i].subsprites->mirrorx = fgetc(file);
-            metasprites[i].subsprites->mirrory = fgetc(file);
-            metasprites[i].subsprites->relx = fgetc(file);
-            metasprites[i].subsprites->rely = fgetc(file);
-            metasprites[i].subsprites->palette = fgetc(file);
-            metasprites[i].subsprites->tile = fgetc(file);
+            metasprites[i].subsprites[j].mirrorx = fgetc(file);
+            metasprites[i].subsprites[j].mirrory = fgetc(file);
+            metasprites[i].subsprites[j].relx = (signed char)fgetc(file);
+            metasprites[i].subsprites[j].rely = (signed char)fgetc(file);
+            metasprites[i].subsprites[j].palette = fgetc(file);
+            metasprites[i].subsprites[j].tile = 0b100000000 | fgetc(file);
         }
         fclose(file);
     }
@@ -1183,8 +1193,11 @@ int main() {
                             break;
                         case SDLK_DELETE:
                         case SDLK_BACKSPACE:
-                            if (lowerMode == 0 && cur_subsprite >= 0 && metasprites[cur_metasprite].numsprites < cur_subsprite) {
-                                
+                            if (lowerMode == 1) {
+                                if (metasprites[cur_metasprite].numsprites != 1 && cur_subsprite >= 0) {
+                                    metasprites[cur_metasprite].numsprites--;
+                                    memcpy(&metasprites[cur_metasprite].subsprites[cur_subsprite], &metasprites[cur_metasprite].subsprites[metasprites[cur_metasprite].numsprites], sizeof(Sprite));
+                                }
                                 break;
                             }
                             if (selectedPattern->numcommands <= 1) break;
@@ -1444,7 +1457,7 @@ int main() {
                                             int hx = pos_history % selectedPattern->sizeX + selectedPattern->commands[command_index].offX;
                                             int hy = pos_history / selectedPattern->sizeX + selectedPattern->commands[command_index].offY;
                                             selectedPattern->commands[command_index].datablock[(i-hy)*selectedPattern->commands[command_index].sizeX+(j-hx)] = cur_metatile;
-                                        } else if (selectedPattern->commands[command_index].type == REFERENCE && event.type == SDL_MOUSEWHEEL) {
+                                        } else if ((selectedPattern->commands[command_index].type == REFERENCE || selectedPattern->commands[command_index].type == POINT) && event.type == SDL_MOUSEWHEEL) {
                                             if ((event.wheel.y > 0) != (event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED)) {
                                                 if (selectedPattern->commands[command_index].argument > 0) {
                                                     selectedPattern->commands[command_index].argument--;
